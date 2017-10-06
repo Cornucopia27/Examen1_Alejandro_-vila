@@ -56,7 +56,7 @@ const StateType LED[2]=
 		{0, {ON, OFF}}/**Off*/
 
 };
-static StateType* State_LED = ON;
+//static StateType* State_LED = ON;
 
 void delay(uint16 delay);
 void turnLEDsOff();
@@ -111,69 +111,77 @@ int main(void)
 				GPIO_clearFA();//clears the flag of the interrupt
 				if(i==1)
 				{
-					FunctionPoint[6];
-					FunctionPoint[0];
+					FunctionPoint[6]();
+					FunctionPoint[0]();
 					i++;
 				}
 				else if(i==2)
 				{
-					FunctionPoint[6];
-					FunctionPoint[1];
+					FunctionPoint[6]();
+					FunctionPoint[1]();
 					i++;
 				}
 				else if(i==3)
 				{
-					FunctionPoint[6];
-					FunctionPoint[2];
+					FunctionPoint[6]();
+					FunctionPoint[2]();
 					i++;
 				}
 				else if(i==4)
 				{
-					FunctionPoint[6];
-					FunctionPoint[3];
+					FunctionPoint[6]();
+					FunctionPoint[3]();
 					i++;
 				}
 				else if(i==5)
 				{
-					FunctionPoint[6];
-					FunctionPoint[4];
+					FunctionPoint[6]();
+					FunctionPoint[4]();
 					i = 1;
 				}
 			}
-		if(TRUE == GPIO_getFC())
+		else if(TRUE == GPIO_getFC())
 		{
 			GPIO_clearFC();//clears the flag of the interrupt
 			if(i==1)
 			{
-				FunctionPoint[6];
-				FunctionPoint[4];
+				FunctionPoint[6]();
+				FunctionPoint[4]();
 				i=5;
 			}
 			else if(i==2)
 			{
-				FunctionPoint[6];
-				FunctionPoint[3];
+				FunctionPoint[6]();
+				FunctionPoint[3]();
 				i--;
 			}
 			else if(i==3)
 			{
-				FunctionPoint[6];
-				FunctionPoint[2];
+				FunctionPoint[6]();
+				FunctionPoint[2]();
 				i--;
 			}
 			else if(i==4)
 			{
-				FunctionPoint[6];
-				FunctionPoint[1];
+				FunctionPoint[6]();
+				FunctionPoint[1]();
 				i--;
 			}
 			else if(i==5)
 			{
-				FunctionPoint[6];
-				FunctionPoint[0];
+				FunctionPoint[6]();
+				FunctionPoint[0]();
 				i--;
 			}
 		}
+		else if(TRUE == (GPIO_getFC() && GPIO_getFA()))
+		{
+			GPIO_clearFA();
+			GPIO_clearFC();
+			FunctionPoint[6]();
+			FunctionPoint[5]();
+		}
+    }
     return 0 ;
 }
 

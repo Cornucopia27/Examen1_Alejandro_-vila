@@ -25,6 +25,17 @@ uint8 GPIO_getFC()
 {
 	return flag_c;
 }
+static uint8 flag_a = FALSE;
+/**function to clear flag value*/
+void GPIO_clearFA()
+{
+	flag_a = FALSE;
+}
+/**returns the value of flag*/
+uint8 GPIO_getFA()
+{
+	return flag_a;
+}
 
 /**handler para la interruption del puerto c*/
 void PORTC_IRQHandler(){
@@ -35,6 +46,7 @@ void PORTC_IRQHandler(){
 
 /**handler para la interruption del puerto a*/
 void PORTA_IRQHandler(){
+	flag_a = TRUE;
 	GPIO_intrStatusFlag.flagPortA  = TRUE;
 	GPIO_clearInterrupt(GPIO_A);
 }

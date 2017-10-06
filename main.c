@@ -35,6 +35,28 @@
 #include <stdio.h>
 #include "DataTypeDefinitions.h"
 #include "MK64F12.h"
+#include "NVIC.h"
+#include "GPIO.h"
+
+/**Macros to declare RUN and STOP as state 1 and 0 of Motor*/
+#define ON &LED[0]
+#define OFF &LED[1]
+
+/**Defines the struct of states, holds a flag to switch between states*/
+typedef const struct State
+{
+	uint8 flag_sec;
+	const struct State* next[2];
+}StateType;
+
+/**Struct created to make a statemachine to turn on and off the motor*/
+const StateType LED[2]=
+{
+		{1, {OFF,ON}},/**On*/
+		{0, {ON, OFF}}/**Off*/
+
+};
+static StateType* State_LED = ON;
 
 void delay(uint16 delay);
 void turnLEDsOff();
@@ -45,209 +67,113 @@ void yellowColor();
 void purpleColor();
 void whiteColor();
 
-static void (*FunctionPoint[6])(void);
+static void (*FunctionPoint[7])(void) = {greenLEDOn, blueLEDOn, purpleColor, redLEDOn, yellowColor, whiteColor, turnLEDsOff};
 /*
  * @brief   Application entry point.
  */
-int main(void) {
-	/**Variable to capture the input value*/
-	uint32 inputValue = 0;
-	uint32 inputValue2 = 0;
-
-	/**Activating the GPIOA, GPIOB, GPIOC and GPIOE clock gating*/
-	SIM->SCGC5 = 0x2E00;
-	/**Pin control configuration of GPIOB pin22 and pin21 as GPIO*/
-	PORTB->PCR[21] = 0x00000100;
-	PORTB->PCR[22] = 0x00000100;
-	/**Pin control configuration of GPIOA pin5 as GPIO with is pull-up resistor enabled*/
-	PORTA->PCR[5] = 0x00000103;
-	/**Pin control configuration of GPIOC pin6 as GPIO with is pull-up resistor enabled*/
-	PORTC->PCR[6] = 0x00000103;
-	/**Pin control configuration of GPIOE pin26 as GPIO*/
-	PORTE->PCR[26] = 0x00000100;
-	/**Assigns a safe value to the output pin21 of the GPIOB*/
-	GPIOB->PDOR = 0x00200000;
-	/**Assigns a safe value to the output pin22 of the GPIOB*/
-	GPIOB->PDOR |= 0x00400000;
-	/**Assigns a safe value to the output pin26 of the GPIOE*/
-	GPIOE->PDOR |= 0x04000000;
-	/**Configures GPIOA pin5 as input*/
-	GPIOA->PDDR &=~(0x10);
-	/**Configures GPIOC pin6 as input*/
-	GPIOC->PDDR &=~(0x40);
-	/**Configures GPIOB pin21 as output*/
-	GPIOB->PDDR = 0x00200000;
-	/**Configures GPIOB pin22 as output*/
-	GPIOB->PDDR |= 0x00400000;
-	/**Configures GPIOE pin26 as output*/
-	GPIOE->PDDR |= 0x04000000;
+int main(void)
+{
+	/**Activating the clock gating of the GPIOs*/
+	GPIO_clockGating(GPIO_A);
+	GPIO_clockGating(GPIO_B);
+	GPIO_clockGating(GPIO_C);
+	GPIO_clockGating(GPIO_D);
+	/**Selected configurations SW2 PC6 Sw3 PA4*/
+	GPIO_pinControlRegisterType pinControlRegisterMux1 = GPIO_MUX1;
+	GPIO_pinControlRegisterType pinControlRegisterInputInterruptPSFE = GPIO_MUX1|GPIO_PE|GPIO_PS|INTR_FALLING_EDGE;
+	/**Configure the characteristics in the GPIOs*/
+	GPIO_pinControlRegister(GPIO_B,BIT21,&pinControlRegisterMux1);//Azul
+	GPIO_pinControlRegister(GPIO_B,BIT22,&pinControlRegisterMux1);//Rojo
+	GPIO_pinControlRegister(GPIO_E,BIT26,&pinControlRegisterMux1);//Verde
+	GPIO_pinControlRegister(GPIO_A,BIT4,&pinControlRegisterInputInterruptPSFE);//Sw3
+	GPIO_pinControlRegister(GPIO_C,BIT6,&pinControlRegisterInputInterruptPSFE);//Sw2
+	/**Configure Port Pins as input/output*/
+	GPIO_dataDirectionPIN(GPIO_B,GPIO_OUTPUT,BIT21);
+	GPIO_dataDirectionPIN(GPIO_B,GPIO_OUTPUT,BIT22);
+	GPIO_dataDirectionPIN(GPIO_E,GPIO_OUTPUT,BIT26);
+	GPIO_dataDirectionPIN(GPIO_C,GPIO_INPUT,BIT6);
+	GPIO_dataDirectionPIN(GPIO_A,GPIO_INPUT,BIT4);
+	/**Sets the threshold for interrupts, if the interrupt has higher priority constant that the BASEPRI, the interrupt will not be attended*/
+	NVIC_setBASEPRI_threshold(PRIORITY_5);
+	/**Enables and sets a particular interrupt and its priority*/
+	NVIC_enableInterruptAndPriotity(PORTA_IRQ,PRIORITY_4);
+	/**Enables and sets a particular interrupt and its priority*/
+	NVIC_enableInterruptAndPriotity(PORTC_IRQ,PRIORITY_4);
 
 	uint32 i = 1;
 
-    while(1) {
-    	/**Reads all the GPIOC*/
-		inputValue = GPIOC->PDIR;
-		/**Masks the GPIOC in the bit of interest*/
-		inputValue = inputValue & 0x40;
-		/**Reads all the GPIOC*/
-		inputValue2 = GPIOA->PDIR;
-		/**Masks the GPIOC in the bit of interest*/
-		inputValue2 = inputValue2 & 0x10;
-		/**Note that the comparison is not inputValur == False, because it is safer if we switch the arguments*/
-
-		/*
-		//Ciclo usado para avanzar
-		if(FALSE == inputValue) {
-			if(i==1){
-				greenLEDOn();
-				delay(650000);
-				while(FALSE == inputValue){
-					inputValue = GPIOC->PDIR;
-					inputValue = inputValue & 0x40;
-					delay(650000);
+    while(1)
+    {
+		/** if comparison to read when the sw2 is pressed and be able to move between i values of 0 and 2
+	 	 	 it uses the function getFC to get the value of the flag set to true when the PortC gets interrupted*/
+		if(TRUE == GPIO_getFA())
+			{
+				GPIO_clearFA();//clears the flag of the interrupt
+				if(i==1)
+				{
+					FunctionPoint[6];
+					FunctionPoint[0];
+					i++;
+				}
+				else if(i==2)
+				{
+					FunctionPoint[6];
+					FunctionPoint[1];
+					i++;
+				}
+				else if(i==3)
+				{
+					FunctionPoint[6];
+					FunctionPoint[2];
+					i++;
+				}
+				else if(i==4)
+				{
+					FunctionPoint[6];
+					FunctionPoint[3];
+					i++;
+				}
+				else if(i==5)
+				{
+					FunctionPoint[6];
+					FunctionPoint[4];
+					i = 1;
 				}
 			}
-			else if (i==2){
-				blueLEDOn();
-				delay(650000);
-				while(FALSE == inputValue){
-					inputValue = GPIOC->PDIR;
-					inputValue = inputValue & 0x40;
-					delay(650000);
-				}
+		if(TRUE == GPIO_getFC())
+		{
+			GPIO_clearFC();//clears the flag of the interrupt
+			if(i==1)
+			{
+				FunctionPoint[6];
+				FunctionPoint[4];
+				i=5;
 			}
-			else if (i==3){
-				purpleColor();
-				delay(650000);
-				while(FALSE == inputValue){
-					inputValue = GPIOC->PDIR;
-					inputValue = inputValue & 0x40;
-					delay(650000);
-				}
+			else if(i==2)
+			{
+				FunctionPoint[6];
+				FunctionPoint[3];
+				i--;
 			}
-			else if (i==4){
-				redLEDOn();
-				delay(650000);
-				while(FALSE == inputValue){
-					inputValue = GPIOC->PDIR;
-					inputValue = inputValue & 0x40;
-					delay(650000);
-				}
+			else if(i==3)
+			{
+				FunctionPoint[6];
+				FunctionPoint[2];
+				i--;
 			}
-			else if (i==5){
-				yellowColor();
-				delay(650000);
-				while(FALSE == inputValue){
-					inputValue = GPIOC->PDIR;
-					inputValue = inputValue & 0x40;
-					delay(650000);
-				}
-				i = 0;
+			else if(i==4)
+			{
+				FunctionPoint[6];
+				FunctionPoint[1];
+				i--;
 			}
-			i += 1;
+			else if(i==5)
+			{
+				FunctionPoint[6];
+				FunctionPoint[0];
+				i--;
+			}
 		}
-		*/
-		//Ciclo usado para atrasar
-		if(FALSE == inputValue) {
-			if(i==1){
-				greenLEDOn();
-				delay(650000);
-				while(FALSE == inputValue){
-					inputValue = GPIOC->PDIR;
-					inputValue = inputValue & 0x40;
-					delay(650000);
-					i = 6;
-				}
-			}
-			else if (i==2){
-				blueLEDOn();
-				delay(650000);
-				while(FALSE == inputValue){
-					inputValue = GPIOC->PDIR;
-					inputValue = inputValue & 0x40;
-					delay(650000);
-				}
-			}
-			else if (i==3){
-				purpleColor();
-				delay(650000);
-				while(FALSE == inputValue){
-					inputValue = GPIOC->PDIR;
-					inputValue = inputValue & 0x40;
-					delay(650000);
-				}
-			}
-			else if (i==4){
-				redLEDOn();
-				delay(650000);
-				while(FALSE == inputValue){
-					inputValue = GPIOC->PDIR;
-					inputValue = inputValue & 0x40;
-					delay(650000);
-				}
-			}
-			else if (i==5){
-				yellowColor();
-				delay(650000);
-				while(FALSE == inputValue){
-					inputValue = GPIOC->PDIR;
-					inputValue = inputValue & 0x40;
-					delay(650000);
-				}
-			}
-			i -= 1;
-		}else if(FALSE == inputValue2) {
-			if(i==1){
-				yellowLEDOn();
-				delay(650000);
-				while(FALSE == inputValue2){
-					inputValue2 = GPIOA->PDIR;
-					inputValue2 = inputValue2 & 0x10;
-					delay(650000);
-					i = 6;
-				}
-			}
-			else if (i==2){
-				redLEDOn();
-				delay(650000);
-				while(FALSE == inputValue2){
-					inputValue2 = GPIOA->PDIR;
-					inputValue2 = inputValue2 & 0x10;
-					delay(650000);
-				}
-			}
-			else if (i==3){
-				purpleColor();
-				delay(650000);
-				while(FALSE == inputValue2){
-					inputValue2 = GPIOA->PDIR;
-					inputValue2 = inputValue2 & 0x10;
-					delay(650000);
-				}
-			}
-			else if (i==4){
-				blueLEDOn();
-				delay(650000);
-				while(FALSE == inputValue2){
-					inputValue2 = GPIOA->PDIR;
-					inputValue2 = inputValue2 & 0x10;
-					delay(650000);
-				}
-			}
-			else if(i==5){
-				greenColor();
-				delay(650000);
-				while(FALSE == inputValue2){
-					inputValue2 = GPIOA->PDIR;
-					inputValue2 = inputValue2 & 0x10;
-					delay(650000);
-				}
-			}
-			i -= 1;
-		}else{ /*if(FALSE == inputValue3)*{*/
-			//turnLEDsOff();
-		}
-    }
     return 0 ;
 }
 
@@ -298,7 +224,8 @@ void purpleColor(){
 	GPIOB->PDOR &= ~(0x00400000);/**Red led on*/
 	delay(65000);
 }
-void whiteColor(){
+void whiteColor()
+{
 		turnLEDsOff();
 	GPIOB->PDOR &= ~(0x00400000);/**Red led on*/
 	GPIOB->PDOR &= ~(0x00200000);/**Blue led on*/
